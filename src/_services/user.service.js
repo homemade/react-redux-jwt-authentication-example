@@ -2,34 +2,11 @@ import { authHeader } from '../_helpers';
 
 export const userService = {
     login,
-    logout,
-    getAll
+    logout
 };
 
-function login(username, password) {
-    const requestOptions = {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-    };
-
-    return fetch('/users/authenticate', requestOptions)
-        .then(response => {
-            if (!response.ok) { 
-                return Promise.reject(response.statusText);
-            }
-
-            return response.json();
-        })
-        .then(user => {
-            // login successful if there's a jwt token in the response
-            if (user && user.token) {
-                // store user details and jwt token in local storage to keep user logged in between page refreshes
-                localStorage.setItem('user', JSON.stringify(user));
-            }
-
-            return user;
-        });
+function login(username, password, orguuid, campaignuuid) {
+  return raiselyLogin(username, password, orguuid);
 }
 
 function logout() {
@@ -37,19 +14,34 @@ function logout() {
     localStorage.removeItem('user');
 }
 
-function getAll() {
-    const requestOptions = {
-        method: 'GET',
-        headers: authHeader()
-    };
-
-    return fetch('/users', requestOptions).then(handleResponse);
-}
-
 function handleResponse(response) {
-    if (!response.ok) { 
+    if (!response.ok) {
         return Promise.reject(response.statusText);
     }
 
     return response.json();
 }
+
+async function raiselyLogin(username, password, orguuid) {
+  if (!username || username == "") {
+    return null;
+  }
+  let requestOptions = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, "organisationUuid": orguuid })
+  };
+  let request = await fetch('https://api.raisely.com/v3/login', requestOptions)
+  let user = await request.json();
+  if (user && user.token && user.data) {
+    let requestOptions = {
+        method: 'GET',
+        headers: { 'Authorization': 'Bearer ' + user.token }
+    };
+    let request = await fetch('https://api.raisely.com/v3/profiles?user='+user.data.uuid, requestOptions);
+    let profiles = await request.json();
+    user.profiles = profiles;
+  }
+  localStorage.setItem('user', JSON.stringify(user));
+  return user;
+};
